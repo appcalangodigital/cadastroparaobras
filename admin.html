@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Administração - Cadastro Construção Civil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--carvao:#23272B;--concreto:#E4E5E6;--papel:#F7F7F5;--amarelo:#FFC20E;--azul:#0F5C8C;--erro:#B3261E;--ok:#1E7B3A}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--concreto);color:var(--carvao);font-family:'Barlow',system-ui,sans-serif;font-size:17px;line-height:1.45}
+  header{background:var(--carvao);color:#fff;padding:18px 20px 14px;border-bottom:8px solid var(--amarelo);text-align:center}
+  header h1{margin:0;font-family:'Barlow Condensed',Impact,sans-serif;font-weight:700;font-size:1.8rem;line-height:1.05}
+  header p{margin:6px 0 0;color:#cfd2d4;font-size:.95rem}
+  main{max-width:720px;margin:0 auto;padding:16px 14px 40px}
+  .caixa{background:var(--papel);border:2px solid var(--carvao);padding:18px}
+  label{display:block;font-weight:600;margin-bottom:6px}
+  input,select{width:100%;font:inherit;padding:11px;border:2px solid #8b9095;border-radius:0;background:#fff;color:var(--carvao)}
+  input:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid var(--azul);outline-offset:2px}
+  .btn{display:inline-block;text-align:center;text-decoration:none;font-family:'Barlow Condensed',Impact,sans-serif;font-weight:700;font-size:1.15rem;letter-spacing:.3px;padding:10px 14px;border:0;cursor:pointer;background:var(--carvao);color:var(--amarelo)}
+  .btn.cheio{display:block;width:100%;font-size:1.4rem;padding:13px;margin-top:14px}
+  .btn.zap{background:#128C4A;color:#fff}
+  .btn.claro{background:#fff;color:var(--carvao);border:2px solid var(--carvao)}
+  .btn:disabled{opacity:.6;cursor:wait}
+  .erro{color:var(--erro);font-weight:600;margin:12px 0 0}
+  .erro:empty{display:none}
+  .oculto{display:none}
+  .topo{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .numeros{font-weight:600}
+  .numeros strong{font-size:1.25rem}
+  .filtros{display:grid;grid-template-columns:1fr 150px;gap:8px;margin-bottom:12px}
+  .item{background:var(--papel);border:2px solid var(--carvao);border-left:10px solid var(--amarelo);padding:14px;margin-bottom:12px}
+  .item.contatado{border-left-color:#9aa0a5;opacity:.85}
+  .item h3{margin:0 0 2px;font-size:1.2rem}
+  .meta{font-size:.9rem;color:#555;margin-bottom:8px}
+  .item p{margin:4px 0}
+  .acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .selo{display:inline-block;font-size:.8rem;font-weight:600;padding:2px 8px;background:var(--amarelo);margin-left:6px}
+  .contatado .selo{background:#cfd2d4}
+</style>
+</head>
+<body>
+<header>
+  <h1>Administração</h1>
+  <p>Cadastro para Construção Civil</p>
+</header>
+
+<main>
+  <section class="caixa" id="login">
+    <label for="senha">Senha de administrador</label>
+    <input id="senha" type="password" autocomplete="current-password">
+    <p class="erro" id="erroLogin" role="alert"></p>
+    <button class="btn cheio" id="entrar" type="button">Entrar</button>
+  </section>
+
+  <section class="oculto" id="painel">
+    <div class="topo">
+      <div class="numeros"><strong id="nTotal">0</strong> cadastrados · <strong id="nNovos">0</strong> sem contato</div>
+      <div>
+        <button class="btn claro" id="atualizar" type="button">Atualizar</button>
+        <button class="btn" id="baixar" type="button">Baixar planilha</button>
+        <button class="btn claro" id="sair" type="button">Sair</button>
+      </div>
+    </div>
+    <div class="filtros">
+      <input id="busca" type="search" placeholder="Buscar por nome, atividade ou número">
+      <select id="filtro" aria-label="Filtrar">
+        <option value="todos">Todos</option>
+        <option value="Novo">Sem contato</option>
+        <option value="Contatado">Contatados</option>
+      </select>
+    </div>
+    <p class="erro" id="erroPainel" role="alert"></p>
+    <div id="lista"></div>
+  </section>
+</main>
+
+<script>
+  var API_URL = 'https://script.google.com/macros/s/AKfycbyukACi_qu2m--gxOs88HHsV9Ns6zitQ2Fp8TrB8TaqfTiiPZ_Awkf9YL6F8Hyh0axfMQ/exec';
+  var $ = function (id) { return document.getElementById(id); };
+  var senha = '';      // fica só na memória da página; some ao fechar ou sair
+  var itens = [];
+
+  function chamar(corpo) {
+    return fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(corpo)
+    }).then(function (r) { return r.json(); });
+  }
+
+  function carregar() {
+    $('erroPainel').textContent = '';
+    return chamar({ acao: 'listar', senha: senha }).then(function (r) {
+      if (!r.ok) { $('erroPainel').textContent = r.mensagem; return false; }
+      itens = r.itens;
+      desenhar();
+      return true;
+    }).catch(function () {
+      $('erroPainel').textContent = 'Não foi possível carregar. Verifique a internet.';
+      return false;
+    });
+  }
+
+  $('entrar').addEventListener('click', entrar);
+  $('senha').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+
+  function entrar() {
+    var s = $('senha').value;
+    if (!s) { $('erroLogin').textContent = 'Digite a senha.'; return; }
+    $('entrar').disabled = true;
+    $('erroLogin').textContent = '';
+    chamar({ acao: 'listar', senha: s }).then(function (r) {
+      $('entrar').disabled = false;
+      if (!r.ok) { $('erroLogin').textContent = r.mensagem; return; }
+      senha = s;
+      $('senha').value = '';
+      itens = r.itens;
+      $('login').classList.add('oculto');
+      $('painel').classList.remove('oculto');
+      desenhar();
+    }).catch(function () {
+      $('entrar').disabled = false;
+      $('erroLogin').textContent = 'Não foi possível entrar. Verifique a internet.';
+    });
+  }
+
+  $('sair').addEventListener('click', function () {
+    senha = ''; itens = [];
+    $('painel').classList.add('oculto');
+    $('login').classList.remove('oculto');
+    $('lista').innerHTML = '';
+  });
+  $('atualizar').addEventListener('click', carregar);
+  $('busca').addEventListener('input', desenhar);
+  $('filtro').addEventListener('change', desenhar);
+
+  function el(tag, classe, texto) {
+    var e = document.createElement(tag);
+    if (classe) e.className = classe;
+    if (texto !== undefined) e.textContent = texto;
+    return e;
+  }
+
+  function desenhar() {
+    var novos = itens.filter(function (i) { return i.status !== 'Contatado'; }).length;
+    $('nTotal').textContent = itens.length;
+    $('nNovos').textContent = novos;
+
+    var termo = $('busca').value.trim().toLowerCase();
+    var filtro = $('filtro').value;
+    var lista = $('lista');
+    lista.innerHTML = '';
+
+    var visiveis = itens.filter(function (i) {
+      if (filtro !== 'todos' && i.status !== filtro) return false;
+      if (!termo) return true;
+      return (i.nome + ' ' + i.atividade + ' ' + i.sobre + ' ' + i.whatsapp).toLowerCase().indexOf(termo) !== -1;
+    });
+
+    if (!visiveis.length) {
+      lista.appendChild(el('p', '', itens.length ? 'Nenhum cadastro encontrado.' : 'Ainda não há cadastros.'));
+      return;
+    }
+
+    visiveis.forEach(function (i) {
+      var contatado = i.status === 'Contatado';
+      var card = el('article', 'item' + (contatado ? ' contatado' : ''));
+      var h = el('h3', '', i.nome);
+      h.appendChild(el('span', 'selo', contatado ? 'Contatado' : 'Novo'));
+      card.appendChild(h);
+      card.appendChild(el('div', 'meta', i.data + ' · ' + formatarFone(i.whatsapp)));
+      card.appendChild(el('p', '', 'Atividade: ' + i.atividade));
+      if (i.sobre) card.appendChild(el('p', '', 'Sobre: ' + i.sobre));
+
+      var acoes = el('div', 'acoes');
+      var zap = el('a', 'btn zap', 'Chamar no WhatsApp');
+      zap.href = 'https://wa.me/55' + i.whatsapp.replace(/\D/g, '');
+      zap.target = '_blank';
+      zap.rel = 'noopener';
+      acoes.appendChild(zap);
+
+      var b = el('button', 'btn claro', contatado ? 'Marcar como novo' : 'Marcar como contatado');
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        b.disabled = true;
+        var novo = contatado ? 'Novo' : 'Contatado';
+        chamar({ acao: 'marcar', senha: senha, linha: i.linha, status: novo }).then(function (r) {
+          if (!r.ok) { b.disabled = false; $('erroPainel').textContent = r.mensagem; return; }
+          i.status = novo;
+          desenhar();
+        }).catch(function () { b.disabled = false; $('erroPainel').textContent = 'Falha ao salvar. Tente de novo.'; });
+      });
+      acoes.appendChild(b);
+      card.appendChild(acoes);
+      lista.appendChild(card);
+    });
+  }
+
+  function formatarFone(f) {
+    var d = String(f).replace(/\D/g, '');
+    return d.length === 11 ? '(' + d.substring(0, 2) + ') ' + d.substring(2, 7) + '-' + d.substring(7) : f;
+  }
+
+  // Baixa os cadastros em CSV (abre no Excel e no Google Planilhas)
+  $('baixar').addEventListener('click', function () {
+    var cab = ['Data/Hora', 'Nome', 'WhatsApp', 'Atividade', 'Sobre', 'Status'];
+    function cel(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }
+    var linhas = [cab.map(cel).join(';')];
+    itens.slice().reverse().forEach(function (i) {
+      linhas.push([i.data, i.nome, i.whatsapp, i.atividade, i.sobre, i.status].map(cel).join(';'));
+    });
+    var blob = new Blob(['\uFEFF' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'cadastros-construcao-civil.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+</script>
+</body>
+</html>

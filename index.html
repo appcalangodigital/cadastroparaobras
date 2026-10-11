@@ -83,14 +83,12 @@
   </form>
 
   <section class="sucesso oculto" id="sucesso" aria-live="polite">
-    <h2>Cadastro salvo!</h2>
-    <p>Falta só um passo: toque no botão abaixo e envie a mensagem no WhatsApp para confirmar seus dados.</p>
-    <a class="btn zap" id="linkZap" href="#" target="_blank" rel="noopener">Enviar no WhatsApp</a>
+    <h2>Cadastro realizado!</h2>
+    <p>Recebemos seus dados. Quando surgir uma vaga para o que você faz, entraremos em contato pelo seu WhatsApp.</p>
   </section>
 </main>
 
 <script>
-  var NUMERO_ADMIN = '5585996461047';
   var $ = function (id) { return document.getElementById(id); };
 
   // COLE AQUI o link do App da Web gerado pelo Apps Script (termina em /exec)
@@ -161,13 +159,6 @@
           $('enviar').textContent = 'Enviar cadastro';
           return mostrarErro(r.mensagem, /WhatsApp|DDD|número/i.test(r.mensagem) ? 'whatsapp' : null);
         }
-        var d = r.dados;
-        var texto = '*Novo cadastro - Construção Civil*\n' +
-          'Nome: ' + d.nome + '\n' +
-          'WhatsApp: ' + d.whatsapp + '\n' +
-          'Atividade: ' + d.atividade + '\n' +
-          'Sobre: ' + (d.sobre || '-');
-        $('linkZap').href = 'https://wa.me/' + (r.admin || NUMERO_ADMIN) + '?text=' + encodeURIComponent(texto);
         mostrarTotal(r.total);
         $('form').classList.add('oculto');
         $('sucesso').classList.remove('oculto');
