@@ -28,6 +28,9 @@
   .erro{color:var(--erro);font-weight:600;margin:12px 0 0}
   .erro:empty{display:none}
   .oculto{display:none}
+  .campo-senha{position:relative}
+  .campo-senha input{padding-right:54px}
+  .olho{position:absolute;right:0;top:0;height:100%;width:50px;background:none;border:0;cursor:pointer;color:var(--carvao);display:flex;align-items:center;justify-content:center}
   .topo{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:12px}
   .numeros{font-weight:600}
   .numeros strong{font-size:1.25rem}
@@ -51,10 +54,15 @@
 <main>
   <section class="caixa" id="login">
     <label for="senha">Senha de administrador</label>
-    <input id="senha" type="password" autocomplete="current-password">
+    <div class="campo-senha">
+      <input id="senha" type="password" autocomplete="current-password">
+      <button class="olho" id="olho" type="button" aria-label="Mostrar senha"></button>
+    </div>
     <p class="erro" id="erroLogin" role="alert"></p>
     <button class="btn cheio" id="entrar" type="button">Entrar</button>
   </section>
+
+  <p class="oculto" id="carregando" style="text-align:center;font-weight:600">Carregando…</p>
 
   <section class="oculto" id="painel">
     <div class="topo">
@@ -81,8 +89,33 @@
 <script>
   var API_URL = 'https://script.google.com/macros/s/AKfycbyukACi_qu2m--gxOs88HHsV9Ns6zitQ2Fp8TrB8TaqfTiiPZ_Awkf9YL6F8Hyh0axfMQ/exec';
   var $ = function (id) { return document.getElementById(id); };
-  var senha = '';      // fica só na memória da página; some ao fechar ou sair
+  var senha = '';
   var itens = [];
+
+  // A sessão fica guardada só nesta aba do navegador: atualizar a página não derruba,
+  // e fechar a aba ou tocar em "Sair" apaga.
+  function guardar(s) { try { sessionStorage.setItem('adm', s); } catch (e) {} }
+  function lembrar() { try { return sessionStorage.getItem('adm') || ''; } catch (e) { return ''; } }
+  function esquecer() { try { sessionStorage.removeItem('adm'); } catch (e) {} }
+
+  // Olhinho para mostrar/ocultar a senha
+  var OLHO = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var OLHO_FECHADO = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.9 10.9 0 0 1 12 19C5 19 1 12 1 12a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.1 9.1 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  $('olho').innerHTML = OLHO;
+  $('olho').addEventListener('click', function () {
+    var campo = $('senha');
+    var mostrar = campo.type === 'password';
+    campo.type = mostrar ? 'text' : 'password';
+    this.innerHTML = mostrar ? OLHO_FECHADO : OLHO;
+    this.setAttribute('aria-label', mostrar ? 'Ocultar senha' : 'Mostrar senha');
+  });
+
+  function abrirPainel(lista) {
+    itens = lista;
+    $('login').classList.add('oculto');
+    $('painel').classList.remove('oculto');
+    desenhar();
+  }
 
   function chamar(corpo) {
     return fetch(API_URL, {
@@ -117,11 +150,9 @@
       $('entrar').disabled = false;
       if (!r.ok) { $('erroLogin').textContent = r.mensagem; return; }
       senha = s;
+      guardar(s);
       $('senha').value = '';
-      itens = r.itens;
-      $('login').classList.add('oculto');
-      $('painel').classList.remove('oculto');
-      desenhar();
+      abrirPainel(r.itens);
     }).catch(function () {
       $('entrar').disabled = false;
       $('erroLogin').textContent = 'Não foi possível entrar. Verifique a internet.';
@@ -129,7 +160,7 @@
   }
 
   $('sair').addEventListener('click', function () {
-    senha = ''; itens = [];
+    senha = ''; itens = []; esquecer();
     $('painel').classList.add('oculto');
     $('login').classList.remove('oculto');
     $('lista').innerHTML = '';
@@ -204,6 +235,31 @@
     var d = String(f).replace(/\D/g, '');
     return d.length === 11 ? '(' + d.substring(0, 2) + ') ' + d.substring(2, 7) + '-' + d.substring(7) : f;
   }
+
+  // Ao atualizar a página, entra de novo sozinho se a sessão ainda estiver guardada
+  (function retomar() {
+    var s = lembrar();
+    if (!s) return;
+    $('login').classList.add('oculto');
+    $('carregando').classList.remove('oculto');
+
+    function voltarLogin(msg) {
+      $('carregando').classList.add('oculto');
+      $('login').classList.remove('oculto');
+      $('erroLogin').textContent = msg || '';
+    }
+
+    chamar({ acao: 'listar', senha: s }).then(function (r) {
+      if (r.ok) {
+        $('carregando').classList.add('oculto');
+        senha = s;
+        abrirPainel(r.itens);
+      } else {
+        if (/incorreta/i.test(r.mensagem)) esquecer();
+        voltarLogin(r.mensagem);
+      }
+    }).catch(function () { voltarLogin('Sem conexão. Tente de novo.'); });
+  })();
 
   // Baixa os cadastros em CSV (abre no Excel e no Google Planilhas)
   $('baixar').addEventListener('click', function () {
